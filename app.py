@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, jsonify
 from model import prediksi_air   # pastikan file model.py di direktori yang sama
 
@@ -38,5 +39,9 @@ def predict():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    # Jalankan server Flask
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # CATATAN: Blok ini HANYA untuk pengembangan lokal (development server).
+    # Di production (Hugging Face) aplikasi dijalankan oleh Gunicorn,
+    # yang langsung memakai objek `app` di atas (lihat Dockerfile: "app:app").
+    # Port mengikuti environment var PORT; default 7860 sesuai Hugging Face Spaces.
+    port = int(os.environ.get('PORT', 7860))
+    app.run(host='0.0.0.0', port=port, debug=False)

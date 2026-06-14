@@ -1,0 +1,9 @@
+# Versi dipin agar SAMA dengan environment saat model .pkl dibuat,
+# supaya joblib.load tidak error/warning karena beda versi scikit-learn.
+Flask==2.3.3
+Werkzeug==2.3.8
+gunicorn==23.0.0
+pandas==2.2.3
+numpy==2.2.5
+scikit-learn==1.6.1
+joblib==1.5.1

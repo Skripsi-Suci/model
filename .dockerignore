@@ -1,0 +1,8 @@
+.git
+__pycache__
+*.pyc
+*.ipynb
+.ipynb_checkpoints
+# Dataset tidak dibutuhkan untuk inference (model sudah berupa .pkl)
+Dataset_coolingwater.csv
+Dataset_Cw_NoLabel.csv
