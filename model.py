@@ -23,60 +23,84 @@ feature_importance_dict = dict(zip(feature_names, feature_importance))
 # 2. STANDAR BATAS PARAMETER (sesuai .ipynb & proposal)
 # ============================================================
 BATAS_SOP = {
-    'pH': (8, 11),
-    'SC': (0, 6000),
-    'Nitrite': (500, 1500),
-    'Fe': (0, 1),
-    'Sulfate': (0, 100),
-    'Turbidity': (0, 30)
+    'pH': (8.0, 11.0),
+    'SC': (0.0, 6000.0),
+    'Nitrite': (500.0, 1500.0),
+    'Fe': (0.0, 1.0),
+    'Sulfate': (0.0, 100.0),
+    'Turbidity': (0.0, 30.0)
 }
 
 # ============================================================
 # 3. FUNGSI VALIDASI SOP DAN REKOMENDASI
 # ============================================================
-def validasi_sop(data):
+def validasi_sop(data, batas_sop=None):
     """Return (status, list_pelanggaran)"""
+    limits = batas_sop if batas_sop is not None else BATAS_SOP
     pelanggaran = []
     for param, nilai in data.items():
-        min_val, max_val = BATAS_SOP[param]
-        if not (min_val <= nilai <= max_val):
-            pelanggaran.append(f"{param} ({nilai}) di luar batas {min_val}--{max_val}")
+        if param in limits:
+            min_val, max_val = limits[param]
+            if not (min_val <= nilai <= max_val):
+                pelanggaran.append(f"{param} ({nilai}) di luar batas {min_val}--{max_val}")
     if pelanggaran:
         return "Tidak Layak", pelanggaran
     return "Layak", []
 
-def detail_validasi(data):
+def detail_validasi(data, batas_sop=None):
     """Return dict detail tiap parameter"""
+    limits = batas_sop if batas_sop is not None else BATAS_SOP
     hasil = {}
     for param, nilai in data.items():
-        min_val, max_val = BATAS_SOP[param]
-        status = "Normal" if min_val <= nilai <= max_val else "Tidak Normal"
-        hasil[param] = {
-            "nilai": nilai,
-            "min": min_val,
-            "max": max_val,
-            "status": status
-        }
+        if param in limits:
+            min_val, max_val = limits[param]
+            status = "Normal" if min_val <= nilai <= max_val else "Tidak Normal"
+            hasil[param] = {
+                "nilai": nilai,
+                "min": min_val,
+                "max": max_val,
+                "status": status
+            }
     return hasil
 
-def rekomendasi(data):
+def rekomendasi(data, batas_sop=None):
+    limits = batas_sop if batas_sop is not None else BATAS_SOP
     saran = []
-    if data['pH'] < 8:
-        saran.append("pH terlalu rendah → naikkan pH (tambah alkali)")
-    elif data['pH'] > 11:
-        saran.append("pH terlalu tinggi → turunkan pH (tambah asam)")
-    if data['SC'] > 6000:
-        saran.append("Konduktivitas tinggi → lakukan blowdown")
-    if data['Nitrite'] < 500:
-        saran.append("Nitrit rendah → tambah inhibitor korosi")
-    elif data['Nitrite'] > 1500:
-        saran.append("Nitrit tinggi → kurangi dosis inhibitor")
-    if data['Fe'] > 1:
-        saran.append("Kandungan Fe tinggi → indikasi korosi, periksa pipa")
-    if data['Sulfate'] > 100:
-        saran.append("Sulfat tinggi → lakukan blowdown")
-    if data['Turbidity'] > 30:
-        saran.append("Kekeruhan tinggi → lakukan filtrasi")
+    
+    # pH
+    ph_min, ph_max = limits.get('pH', (8.0, 11.0))
+    if data['pH'] < ph_min:
+        saran.append(f"pH terlalu rendah ({data['pH']}) → naikkan pH (tambah alkali) [Target SOP: {ph_min} - {ph_max}]")
+    elif data['pH'] > ph_max:
+        saran.append(f"pH terlalu tinggi ({data['pH']}) → turunkan pH (tambah asam) [Target SOP: {ph_min} - {ph_max}]")
+    
+    # SC
+    sc_min, sc_max = limits.get('SC', (0.0, 6000.0))
+    if data['SC'] > sc_max:
+        saran.append(f"Konduktivitas tinggi ({data['SC']} µS/cm) → lakukan blowdown [Target SOP: max {sc_max}]")
+        
+    # Nitrite
+    nit_min, nit_max = limits.get('Nitrite', (500.0, 1500.0))
+    if data['Nitrite'] < nit_min:
+        saran.append(f"Nitrit rendah ({data['Nitrite']} ppm) → tambah inhibitor korosi [Target SOP: {nit_min} - {nit_max}]")
+    elif data['Nitrite'] > nit_max:
+        saran.append(f"Nitrit tinggi ({data['Nitrite']} ppm) → kurangi dosis inhibitor [Target SOP: {nit_min} - {nit_max}]")
+        
+    # Fe
+    fe_min, fe_max = limits.get('Fe', (0.0, 1.0))
+    if data['Fe'] > fe_max:
+        saran.append(f"Kandungan Fe tinggi ({data['Fe']} ppm) → indikasi korosi, periksa pipa [Target SOP: max {fe_max}]")
+        
+    # Sulfate
+    sulf_min, sulf_max = limits.get('Sulfate', (0.0, 100.0))
+    if data['Sulfate'] > sulf_max:
+        saran.append(f"Sulfat tinggi ({data['Sulfate']} ppm) → lakukan blowdown [Target SOP: max {sulf_max}]")
+        
+    # Turbidity
+    turb_min, turb_max = limits.get('Turbidity', (0.0, 30.0))
+    if data['Turbidity'] > turb_max:
+        saran.append(f"Kekeruhan tinggi ({data['Turbidity']} NTU) → lakukan filtrasi [Target SOP: max {turb_max}]")
+        
     if not saran:
         saran.append("Semua parameter dalam kondisi optimal")
     return saran
@@ -94,11 +118,12 @@ def warning_system(hasil_sop, label_rf):
 # ============================================================
 # 4. FUNGSI UTAMA PREDIKSI (DIPANGGIL OLEH FLASK)
 # ============================================================
-def prediksi_air(data_baru):
+def prediksi_air(data_baru, batas_sop=None):
     """
     Parameters:
         data_baru (dict): {'pH': float, 'SC': float, 'Nitrite': float,
                            'Fe': float, 'Sulfate': float, 'Turbidity': float}
+        batas_sop (dict, optional): custom limits parsed from frontend
     Returns:
         dict: hasil klasifikasi + validasi SOP + rekomendasi + warning
     """
@@ -113,15 +138,15 @@ def prediksi_air(data_baru):
     label_rf = "Layak" if pred == 1 else "Tidak Layak"
     
     # Validasi SOP
-    status_sop, pelanggaran = validasi_sop(data_baru)
+    status_sop, pelanggaran = validasi_sop(data_baru, batas_sop)
     
     return {
         "status_prediksi": label_rf,
         "confidence_score": confidence,
         "validasi_sop": status_sop,
         "pelanggaran": pelanggaran,
-        "detail_validasi": detail_validasi(data_baru),
-        "rekomendasi": rekomendasi(data_baru),
+        "detail_validasi": detail_validasi(data_baru, batas_sop),
+        "rekomendasi": rekomendasi(data_baru, batas_sop),
         "warning": warning_system(status_sop, label_rf),
         "feature_importance": feature_importance_dict   # dari model
     }

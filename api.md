@@ -195,3 +195,191 @@ Sistem memberikan level peringatan berdasarkan kecocokan antara **Validasi SOP**
 | **Tidak Layak** | **Tidak Layak** | `DANGER` | Konsisten: air TIDAK layak. Segera tindakan. |
 | **Layak** | **Tidak Layak** | `WARNING` | Model mendeteksi anomali meski SOP terpenuhi. Pantau ketat. |
 | **Tidak Layak** | **Layak** | `CRITICAL` | KRITIS: SOP melanggar. Utamakan SOP! Jangan gunakan air. |
+
+---
+
+## 4. Endpoint Pipeline Proses Model (`/api/pipeline/*`)
+
+Endpoint ini merepresentasikan setiap tahapan/proses dalam pengembangan model Random Forest seperti yang tertuang dalam file `Real_Prosessssss.ipynb`.
+
+### A. Load Dataset (`/api/pipeline/load`)
+Membaca file dataset `Dataset_coolingwater.csv`, mereset seluruh *state* pipeline yang ada di memory, dan mengembalikan informasi ringkasan dataset.
+- **URL:** `/api/pipeline/load`
+- **Method:** `POST` atau `GET`
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "message": "Dataset loaded successfully.",
+    "shape": [1056, 8],
+    "columns": ["pH", "SC", "Nitrite", "Fe", "Sulfate", "Turbidity", "Target", "Target_encoded"],
+    "class_counts": {
+      "Layak": 958,
+      "Tidak Layak": 98
+    },
+    "missing_values": {
+      "Fe": 0, "Nitrite": 0, "SC": 0, "Sulfate": 0, "Target": 0, "Target_encoded": 0, "Turbidity": 0, "pH": 0
+    }
+  }
+  ```
+
+### B. Preprocessing Data (`/api/pipeline/preprocess`)
+Memeriksa missing values dan data duplikat, lalu menghapus data duplikat dari dataset.
+- **URL:** `/api/pipeline/preprocess`
+- **Method:** `POST`
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "message": "Data preprocessed successfully (duplicates dropped).",
+    "duplicate_count": 10,
+    "rows_before": 1056,
+    "rows_after": 1046,
+    "missing_values": {
+      "Fe": 0, "Nitrite": 0, "SC": 0, "Sulfate": 0, "Target": 0, "Target_encoded": 0, "Turbidity": 0, "pH": 0
+    }
+  }
+  ```
+
+### C. Train-Test Split (`/api/pipeline/split`)
+Membagi data fitur (`X`) dan target (`y`) menjadi data training dan testing (default test size: 30%, stratify=y, random_state=42).
+- **URL:** `/api/pipeline/split`
+- **Method:** `POST`
+- **Body Parameter (JSON - Opsional):**
+  - `test_size` (float, default: `0.3`)
+  - `random_state` (int, default: `42`)
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "message": "Data split successfully.",
+    "X_train_shape": [732, 6],
+    "X_test_shape": [314, 6],
+    "y_train_shape": [732],
+    "y_test_shape": [314],
+    "features": ["pH", "SC", "Nitrite", "Fe", "Sulfate", "Turbidity"]
+  }
+  ```
+
+### D. Cross Validation (`/api/pipeline/cv`)
+Melakukan K-Fold Cross Validation Stratified sebanyak 5 fold pada data training untuk mengevaluasi model Random Forest awal menggunakan metrik F1-score.
+- **URL:** `/api/pipeline/cv`
+- **Method:** `POST`
+- **Body Parameter (JSON - Opsional):**
+  - `n_splits` (int, default: `5`)
+  - `random_state` (int, default: `42`)
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "fold_f1_scores": [1.0, 0.9962546816479401, 1.0, 1.0, 0.9962264150943396],
+    "mean_f1_score": 0.9984962193484559
+  }
+  ```
+
+### E. Train Model (`/api/pipeline/train`)
+Melatih classifier Random Forest pada data training (`X_train`, `y_train`) dan menyimpannya di memory server.
+- **URL:** `/api/pipeline/train`
+- **Method:** `POST`
+- **Body Parameter (JSON - Opsional):**
+  - `random_state` (int, default: `42`)
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "message": "Model trained successfully."
+  }
+  ```
+
+### F. Model Evaluation (`/api/pipeline/evaluate`)
+Melakukan pengujian model pada data testing (`X_test`) dan mengembalikan akurasi serta rincian Classification Report.
+- **URL:** `/api/pipeline/evaluate`
+- **Method:** `POST` atau `GET`
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "accuracy": 0.9968152866242038,
+    "classification_report": {
+      "0": {
+        "f1-score": 0.9824561403508771,
+        "precision": 1.0,
+        "recall": 0.9655172413793104,
+        "support": 29
+      },
+      "1": {
+        "f1-score": 0.9982486865148862,
+        "precision": 0.9965034965034965,
+        "recall": 1.0,
+        "support": 285
+      },
+      "accuracy": 0.9968152866242038,
+      "macro avg": {
+        "f1-score": 0.9903524134328816,
+        "precision": 0.9982517482517482,
+        "recall": 0.9827586206896552,
+        "support": 314
+      },
+      "weighted avg": {
+        "f1-score": 0.9967901392577007,
+        "precision": 0.9968264219856576,
+        "recall": 0.9968152866242038,
+        "support": 314
+      }
+    }
+  }
+  ```
+
+### G. Confusion Matrix (`/api/pipeline/confusion-matrix`)
+Mengembalikan Confusion Matrix evaluasi test set beserta rincian True Negative (TN), False Positive (FP), False Negative (FN), dan True Positive (TP).
+- **URL:** `/api/pipeline/confusion-matrix`
+- **Method:** `POST` atau `GET`
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "confusion_matrix": [
+      [28, 1],
+      [0, 285]
+    ],
+    "tn": 28,
+    "fp": 1,
+    "fn": 0,
+    "tp": 285,
+    "classes": ["Tidak Layak", "Layak"]
+  }
+  ```
+
+### H. Feature Importance (`/api/pipeline/feature-importance`)
+Mengambil skor pentingnya fitur (Feature Importance) dari model Random Forest yang telah dilatih, diurutkan dari yang paling penting.
+- **URL:** `/api/pipeline/feature-importance`
+- **Method:** `POST` atau `GET`
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "feature_importance": {
+      "Fe": 0.5628439706788642,
+      "Turbidity": 0.2326314714765093,
+      "pH": 0.06917921889171026,
+      "Nitrite": 0.06763505766956049,
+      "SC": 0.044389725067828276,
+      "Sulfate": 0.023320556215527404
+    }
+  }
+  ```
+
+### I. Save Model (`/api/pipeline/save`)
+Menyimpan model Random Forest yang telah dilatih ke dalam file objek binary `.pkl` di server.
+- **URL:** `/api/pipeline/save`
+- **Method:** `POST`
+- **Body Parameter (JSON - Opsional):**
+  - `filename` (string, contoh: `"Randomforest_baru.pkl"`)
+- **Contoh Respons (JSON):**
+  ```json
+  {
+    "status": "success",
+    "message": "Model saved successfully as Randomforest_baru.pkl.",
+    "filename": "Randomforest_baru.pkl"
+  }
+  }
